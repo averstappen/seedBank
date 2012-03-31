@@ -44,12 +44,12 @@ seedBank is a simple tool to manage Debian and Ubuntu netboot installations. It 
 
 You could see it is a lightweight alternative to FAI (Fully Automatic Installation) or Cobbler, but much simpler and less bloated. seedBank is focused on one task and that is installing systems as clean as possible and let configuration tools like Puppet and Chef take it over after the installation. 
 
-The development of seedBank started in August 2009 and it is since September 23rd available for the public.
+The development of seedBank started in August 2009 and was first released to the general public on September 23rd 2011 under the Apache 2.0 license.
 
 How does it work?
 -----------------
 
-seedBank 'installations' are done via Debian or Ubuntu preseed files. Seeding is an important part of the Debian system and is basically used to configure anything. Preseed files are available for a long time but they are hard to manage and not flexible. This is where seedBank comes to be the helping hand.
+seedBank 'installations' are done via Debian or Ubuntu preseed files. Seeding is an important part of the Debian system and is basically used to configure anything. Preseed files have been available for a long time but they are hard to manage and lack flexibility. This is where seedBank comes to be the helping hand.
 
 Features
 --------
@@ -76,11 +76,11 @@ Features
 Requirements
 ============
 
-Python version 2.6 or 2.7
-Properly configured DHCP server
-Properly configured DNS Server (hosts file will also work)
-Properly configured TFTP Server
-A Debian or Ubuntu repository
+- Python version 2.6 or 2.7
+- Properly configured DHCP server
+- Properly configured DNS Server (hosts file will also work)
+- Properly configured TFTP Server
+- A Debian or Ubuntu repository
 
 Links
 =====
