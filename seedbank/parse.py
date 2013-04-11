@@ -1,26 +1,26 @@
 """this module processes the arguments"""
 
-# Copyright 2009-2012 Jasper Poppe <jpoppe@ebay.com>
-# 
+# Copyright 2009-2012 Jasper Poppe <jgpoppe@gmail.com>
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__author__ = 'Jasper Poppe <jpoppe@ebay.com>'
+__author__ = 'Jasper Poppe <jgpoppe@gmail.com>'
 __copyright__ = 'Copyright (c) 2009-2012 Jasper Poppe'
 __credits__ = ''
 __license__ = 'Apache License, Version 2.0'
-__version__ = '2.0.0rc5'
+__version__ = '2.0.0rc7'
 __maintainer__ = 'Jasper Poppe'
-__email__ = 'jpoppe@ebay.com'
+__email__ = 'jgpoppe@gmail.com'
 __status__ = 'production'
 
 import logging
@@ -78,19 +78,42 @@ class ParseArguments:
 
         list_resource.print_list()
 
-    def _shared(self, args, release):
+    def _merge_config(self, defaults, overrides):
+        """merge the config overrides wth the  default configuration"""
+        for key, values in overrides.items():
+            if key in defaults:
+                for value in values:
+                    defaults[key][value] = overrides[key][value]
+            else:
+                defaults[key] = overrides[key]
+        return defaults
+
+    def _shared(self, args, release_type):
         """process shared arguments between the pxe and iso commands"""
+
         if args.config:
             yaml_file = os.path.join(self.cfg['paths']['configs'], args.config)
             yaml_file += '.yaml'
             overrides = utils.yaml_read(yaml_file)
             if 'args' in overrides:
                 args = settings.override(args, overrides)
-            config = dict(self.cfg.items() + overrides.items())
+            config = self._merge_config(self.cfg, overrides)
         else:
             config = self.cfg
 
-        if args.overlay:
+        if not args.release:
+            args.release = self.cfg['default_release'][release_type]
+        else:
+            args.release = args.release
+
+        try:
+            release = args.release.split('-')[1]
+        except (ValueError, IndexError):
+            raise self.exception('"%s" is not a valid release, use the '
+                '"seedbank list" command to list available releases'
+                % args.release)
+
+        if 'overlay' in args and args.overlay:
             path = os.path.join(self.cfg['paths']['overlays'], args.overlay)
             if os.path.isdir(path):
                 args.path = path
@@ -98,10 +121,14 @@ class ParseArguments:
                 raise self.exception('file overlay directory "%s" does not '
                     'exist' % path)
 
-        if not '.' in args.fqdn:
+        if not args.fqdn:
+            raise self.exception('you will need to specify a fully qualified '
+                'domain name on the command line or in the args section of a '
+                'config override file')
+        elif not '.' in args.fqdn:
             raise self.exception('"%s" is not a fully qualified domain name' %
                 args.fqdn)
-            
+
         if not args.seed:
             args.seed = release
         args.seeds = [args.seed] + args.additional
@@ -126,18 +153,17 @@ class ParseArguments:
 
     def pxe(self, args):
         """process the pxe command"""
-        _, release, _ = args.release.split('-')
-        args, config = self._shared(args, release)
+        args, config = self._shared(args, 'pxe')
+        release = args.release
 
-        path = os.path.join(config['paths']['tftpboot'], 'seedbank',
-            args.release)
+        path = os.path.join(config['paths']['tftpboot'], 'seedbank', release)
         if not os.path.isdir(path):
-            if release in config['distributions']['netboots']:
-                err = '"%s" is not available, run "seedbank manage -n "%s" to '\
-                    'download an prepare the release' % args.release
+            if release in config['netboots']:
+                err = '"%s" is not available, run "seedbank manage -n %s" to '\
+                    'download and prepare the release' % (release, release)
             else:
-                #FIXME: test this
-                err = '"%s" is an uknown release' % args.release
+                err = '"%s" is not a valid release, run "seedbank list -n" to '\
+                    'list valid releases ' % release
             raise self.exception(err)
 
         if args.macaddress:
@@ -146,8 +172,7 @@ class ParseArguments:
             elif not re.match('([a-fA-F0-9]{2}[:|\-]?){6}', args.macaddress):
                 err = '"%s" is not a valid MAC address' % args.macaddress
                 raise self.exception(err)
-            else:
-                args.address = utils.format_address(args.macaddress)
+            args.address = utils.format_address(args.macaddress)
         else:
             ip_address = utils.resolve_ip_address(args.fqdn) 
             args.address = utils.ip_to_hex(ip_address)
@@ -156,7 +181,10 @@ class ParseArguments:
         pxe_linux.state_remove()
         pxe_linux.write(pxe_linux.generate())
         pxe_linux.hook_enable()
-        
+
+        logging.info('"%s" will be installed with "%s" after the next PXE boot',
+            args.fqdn, args.release)
+
     def iso(self, args):
         """validate the input and if no errors are found build an (unattended)
         installation ISO from a regular install ISO"""
@@ -167,14 +195,8 @@ class ParseArguments:
         if not 'puppet' in args:
             args.puppet = []
 
-        try:
-            release = args.release.split('-')[1]
-        except ValueError:
-            raise self.exception('"%s" is not a valid release' % args.release)
-
-        args, config = self._shared(args, release)
-
-        if args.release in config['distributions']['isos']:
+        args, config = self._shared(args, 'iso')
+        if args.release in config['isos']:
             iso_file = os.path.join(config['paths']['isos'], args.release)
             iso_file += '.iso'
         else:
@@ -182,10 +204,14 @@ class ParseArguments:
 
         if not os.path.isfile(iso_file):
             raise self.exception('"%s" is a valid release, but the installer '
-                'ISO is not available (run "seedbank manage -i %s" for '
-                'downloading the ISO)' % (args.release, args.release))
+                'ISO is not available (run "seedbank manage -i %s" to download '
+                'the ISO)' % (args.release, args.release))
 
-        iso_dst = os.path.abspath(args.output)
+        if 'isofile' in args and args.isofile:
+            iso_dst = os.path.abspath(args.isofile)
+        else:
+            iso_dst = os.path.join(os.getcwd(), '%s.iso' % args.fqdn)
+
         if os.path.isfile(iso_dst):
             logging.warning('"%s" already exists, will overwrite', iso_dst)
 
@@ -203,7 +229,7 @@ class ParseArguments:
             overlay.prepare(template_cfg['seed'])
             permissions = pimp.OverlayPermissions(self.cfg)
             permissions.script(overlay.dst, args.overlay, '/target')
- 
+
         seed = pimp.SeedPimp(template_cfg, 'iso')
         preseed = seed.pimp(args.seeds, args.overlay, args.puppet)
         build.add_preseed(preseed)
@@ -211,14 +237,22 @@ class ParseArguments:
         build.add_templates(distribution)
         if args.overlay:
             build.add_overlay(overlay.dst)
+        build.non_free_firmware(args.release)
+        build.rebuild_initrd()
         build.create()
+        logging.info('ISO "%s" has been created', iso_dst)
+        for hook in self.cfg['hooks_iso']['enable']:
+            #hook = utils.apply_template(hook, self.pxe_variables)
+            logging.info('found enable hook "%s"', hook)
+            utils.run(hook, error=True)
+
 
     def manage(self, args):
         """validate the input and if no errors are found run the specified 
         seedbank manage command actions"""
         setup = manage.Manage(self.cfg)
         if args.netboot:
-            if args.netboot in self.cfg['distributions']['netboots']:
+            if args.netboot in self.cfg['netboots']:
                 setup.netboot(args.netboot)
             else:
                 err = '"%s" is not configured (use "seedbank list '\
@@ -226,7 +260,7 @@ class ParseArguments:
                     'images)' % args.netboot
                 raise self.exception(err)
         elif args.iso:
-            if args.iso in self.cfg['distributions']['isos']:
+            if args.iso in self.cfg['isos']:
                 setup.iso(args.iso)
             else:
                 err = '"%s" is not configured (use "seedbank list --isos" to '\

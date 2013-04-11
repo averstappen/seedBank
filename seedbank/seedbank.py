@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-# Copyright 2009-2012 Jasper Poppe <jpoppe@ebay.com>
-# 
+# Copyright 2009-2012 Jasper Poppe <jgpoppe@gmail.com>
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,13 +29,13 @@ freeDOS support?
 more?
 """
 
-__author__ = 'Jasper Poppe <jpoppe@ebay.com>'
+__author__ = 'Jasper Poppe <jgpoppe@gmail.com>'
 __copyright__ = 'Copyright (c) 2009-2012 Jasper Poppe'
 __credits__ = ''
 __license__ = 'Apache License, Version 2.0'
-__version__ = '2.0.0rc5'
+__version__ = '2.0.0rc7'
 __maintainer__ = 'Jasper Poppe'
-__email__ = 'jpoppe@ebay.com'
+__email__ = 'jgpoppe@gmail.com'
 __status__ = 'production'
 
 import argparse
@@ -51,9 +51,13 @@ import utils
 
 
 cfg = settings.parse_cfg()
-logging.config.fileConfig(cfg['logging']['configuration'])
-logger = logging.getLogger(cfg['logging']['logger'])
-
+try:
+    logging.config.fileConfig(cfg['logging']['configuration'])
+except IOError as err:
+    sys.stderr.write(str(err) + ', do you have the right permissions?\n')
+    sys.exit(1)
+else:
+    logger = logging.getLogger(cfg['logging']['logger'])
 
 def argument_parser():
     """process the arguments"""
@@ -61,8 +65,9 @@ def argument_parser():
 
     parser = argparse.ArgumentParser(description='seedBank - Debian/Ubuntu '
         'netboot installations the way it is meant to be... (c) 2009-2012 '
-        'Jasper Poppe <jpoppe@ebay.com>', epilog='for more information visit: '
-        'http://www.infrastructureanywhere.com', fromfile_prefix_chars='@')
+        'Jasper Poppe <jgpoppe@gmail.com>', epilog='for more information '
+        'visit: http://www.infrastructureanywhere.com',
+        fromfile_prefix_chars='@')
     parser.add_argument('--version', action='version', version=__version__)
     subparsers = parser.add_subparsers(help='commands')
 
@@ -71,11 +76,11 @@ def argument_parser():
         'manifests, configuration overrides, file overlays, pxelinux.cfg files'
         ', netboot images and ISOs', formatter_class=RawTextHelpFormatter)
     parser_list.add_argument('-a', '--all', action='store_true',
-        help='List all resources')
+        help='list all resources')
     parser_list.add_argument('-n', '--netboots', action='store_true',
         help='list releases which are available for netboot\ninstallations'
         ', names starting with an asterisk are\nready to use\nnetboot images '
-        'are managed by the "seedbank manage"\ncommand')
+        'are managed by the "seedbank manage -n"\ncommand')
     parser_list.add_argument('-i', '--isos', action='store_true',
         help='list ISOs which are used for building (unattended)\ninstallation '
         'ISOs ISO names starting with an asterisk\nare ready to use\nISOs '
@@ -117,20 +122,22 @@ def argument_parser():
         'distribution, e.g: squeeze or precise)')
     parser_shared.add_argument('-a', '--additional', action='append',
         default=[], metavar='SEED', help='append additional seed files to the '
-        'default seed file like  disk recipes, repositories or other '
-        'additional (custom) seeds')
-    parser_shared.add_argument('fqdn', help='fully qualified domain name of '
-        'the node to install')
-    parser_shared.add_argument('release', help='release name')
+        'default seed file like disk recipes, repositories or other additional '
+        '(custom) seeds')
+    parser_shared.add_argument('fqdn', nargs='?', help='fully qualified domain '
+        'name of the node to install')
     parser_shared.add_argument('-p', '--puppet', action='append',
         metavar='MANIFEST', default=[], help='choose one or more Puppet '
         'manifest(s) to apply after the installation')
     parser_shared.add_argument('-c', '--config', default=None, help='override '
-        'template (pxe and seed) settings')
-  
+        'template (pxe and seed) settings and set command line arguments,'
+        'could also be used for creating machine profiles')
+
     parser_pxe = subparsers.add_parser('pxe', parents=[parser_shared],
         help='manage netboot installations, prepare a pxelinux.cfg '
         'file with all the settings required for a netboot installation')
+    parser_pxe.add_argument('-r', '--release', help='release name (default: '
+        'settings -> default_release -> pxe)')
     parser_pxe.add_argument('-m', '--macaddress',
         help='use a MAC address instead of a to hexidecimal converted IP '
         'address for the pxelinux.cfg configuration file name, the advantage '
@@ -145,7 +152,10 @@ def argument_parser():
 
     parser_iso = subparsers.add_parser('iso', parents=[parser_shared],
         help='build an (unattended) installation ISO')
-    parser_iso.add_argument('output', help='file name of the generated ISO')
+    parser_iso.add_argument('-r', '--release', help='release name (default: '
+        'settings -> default_release -> iso)')
+    parser_iso.add_argument('-i', '--isofile', help='file name and location '
+        'of the generated ISO (default: ./<fqdn>.iso)')
     parser_iso.add_argument('-v', '--variables', nargs=2, action='append',
         metavar=('KEY', 'VALUE'),
         default=[], help='add (or overrides) one or more seed and or overlay '
@@ -155,7 +165,7 @@ def argument_parser():
 
     parser_manage = subparsers.add_parser('manage', help='download and '
         'manage netboot images, syslinux files and ISOs')
-    group = parser_manage.add_mutually_exclusive_group() 
+    group = parser_manage.add_mutually_exclusive_group()
     group.add_argument('-s', '--syslinux', action='store_true',
         help='download the syslinux archive and extract the pxelinux.0, '
         'menu.c32 and vesamenu.c32 files and place those in the tftpboot '
@@ -193,22 +203,21 @@ def argument_parser():
     if len(sys.argv) == 2:
         if sys.argv[1] == 'list':
             parser_list.print_help()
-        if sys.argv[1] == 'manage':
+        if sys.argv[1] == 'pxe':
+            parser_pxe.print_help()
+        if sys.argv[1] == 'iso':
+            parser_iso.print_help()
+        elif sys.argv[1] == 'manage':
             parser_manage.print_help()
-        if sys.argv[1] == 'daemon':
+        elif sys.argv[1] == 'daemon':
             parser_daemon.print_help()
     else:
         args.func(args)
 
 def main():
     """the main application"""
-
     try:
-        #if sys.stdin.isatty():
         argument_parser()
-        #else:
-        #    piped = sys.stdin.read()
-        #    print(piped)
     except utils.FatalException:
         sys.exit(1)
     except Exception as err:

@@ -2,27 +2,27 @@
 
 """this module is shared by the Infrastructure Anywhere and seedBank project"""
 
-# Copyright 2011-2012 Jasper Poppe <jpoppe@ebay.com>
-# 
+# Copyright 2011-2012 Jasper Poppe <jgpoppe@gmail.com>
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__author__ = 'Jasper Poppe <jpoppe@ebay.com>'
+__author__ = 'Jasper Poppe <jgpoppe@gmail.com>'
 __copyright__ = 'Copyright (c) 2011-2012 Jasper Poppe'
 __credits__ = ''
 __license__ = 'Apache License, Version 2.0'
-__version__ = '2.0.0rc5'
+__version__ = '2.0.0rc7'
 __maintainer__ = 'Jasper Poppe'
-__email__ = 'jpoppe@ebay.com'
+__email__ = 'jgpoppe@gmail.com'
 __status__ = 'development'
 
 import argparse
@@ -30,9 +30,9 @@ import cStringIO
 import datetime
 import json
 import logging
-import lxml.html
 import os
 import pprint
+import re
 import shutil
 import socket
 import string
@@ -42,6 +42,8 @@ import tarfile
 import urllib
 import urllib2
 import yaml
+
+from HTMLParser import HTMLParser
 
 
 class FatalException(Exception):
@@ -83,6 +85,29 @@ class APIException(Exception):
         return repr(self.msg)
 
 
+class HTMLParseTag(HTMLParser):
+    """get the contents of all entries of the given HTML tag"""
+
+    def __init__(self, tag):
+        HTMLParser.__init__(self)
+        self.data = []
+        self.tag = tag
+
+    def handle_starttag(self, tag, attrs):
+        if tag == self.tag:
+            for _, value in attrs:
+                self.data.append(value)
+
+def scrape_tag(url, tag):
+    """return a list with all data from given HTML tag"""
+    data = urllib2.urlopen(url)
+    html = data.read()
+    parse = HTMLParseTag('a')
+    parse.feed(html)
+    result = parse.data
+    parse.close()
+    return result
+
 def json_client(url, data):
     """send a python dictionary as json to a rest api"""
     request = urllib2.Request(url, data=json.dumps(data),
@@ -92,11 +117,16 @@ def json_client(url, data):
         if response:
             logging.info(response)
     except urllib2.HTTPError as err:
-        contents = err.read()
-        tree = lxml.html.fromstring(contents)
-        for element in tree.xpath('.//pre'):
-            err = element.text
-        raise FatalException(err)
+        html = err.read()
+        msg = str(err)
+        regex = re.compile(r'.*<pre>(.*?)</pre>', re.S|re.M)
+        match = regex.match(html)
+        if match:
+            text = match.groups()[0].strip()
+            htmlparser = HTMLParser()
+            text = htmlparser.unescape(text)
+            msg += ': ' + text.strip('\'')
+        raise FatalException(msg)
     except urllib2.URLError as err:
         raise FatalException('failed to connect to "%s"' % url, err)
 
@@ -150,7 +180,7 @@ def _shell_escape(cmd):
         cmd = cmd.replace(char, '\%s' % char)
     return cmd
 
-def run(cmd, user=None, host=None):
+def run(cmd, user=None, host=None, error=None):
     """run a command locally or remote via SSH"""
     if host != 'localhost' and user and host:
         logging.info('%s@%s - running "%s"', user, host, cmd)
@@ -170,7 +200,8 @@ def run(cmd, user=None, host=None):
             logging.info(stdout.strip())
         if stderr:
             logging.error(stderr.strip())
-        raise FatalException()
+        if not error:
+            raise FatalException()
     else:
         return stdout
 
@@ -385,9 +416,16 @@ def download(url, dst, report_hook=False):
     """download a file"""
     logging.info('downloading "%s" to "%s"', url, dst)
     try:
+        urllib2.urlopen(url)
+    except urllib2.HTTPError as err:
+        raise FatalException('%s, failed to download "%s"' % (err, url))
+
+    try:
         (filename, headers) = urllib.urlretrieve(url, dst, report_hook)
+    except (IOError, OSError) as err:
+        raise FatalException('%s, failed to download "%s"' % (err, url))
     except Exception as err:
-        raise FatalException('failed to download "%s"' % url, err)
+        raise FatalException('%s, failed to download "%s"' % (err, url), err)
     else:
         logging.info('finished downloading "%s"', url)
 
@@ -404,7 +442,7 @@ def initrd_extract(path, initrd):
     else:
         cpio = 'cpio'
     run('cd "%s" && gzip -d < "%s" | %s --extract --make-directories ' 
-        '--no-absolute-filenames' % (path, initrd, cpio))
+        '--no-absolute-filenames' % (path, initrd, cpio), error=True)
 
 def initrd_create(path, initrd):
     """create an initrd image"""

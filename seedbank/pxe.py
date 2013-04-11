@@ -1,26 +1,24 @@
-#!/usr/bin/env python
-
-# Copyright 2009-2012 Jasper Poppe <jpoppe@ebay.com>
-# 
+# Copyright 2009-2012 Jasper Poppe <jgpoppe@gmail.com>
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__author__ = 'Jasper Poppe <jpoppe@ebay.com>'
+__author__ = 'Jasper Poppe <jgpoppe@gmail.com>'
 __copyright__ = 'Copyright (c) 2009-2012 Jasper Poppe'
 __credits__ = ''
 __license__ = 'Apache License, Version 2.0'
-__version__ = '2.0.0rc5'
+__version__ = '2.0.0rc7'
 __maintainer__ = 'Jasper Poppe'
-__email__ = 'jpoppe@ebay.com'
+__email__ = 'jgpoppe@gmail.com'
 __status__ = 'production'
 
 import os
@@ -38,7 +36,7 @@ cfg = settings.parse_cfg()
 
 class GeneratePxe:
     """manage and generate pxe files"""
-    
+
     def __init__(self, args):
         """set arguments as class variables"""
         self.seeds = args.seeds
@@ -91,7 +89,7 @@ class GeneratePxe:
         self.pxe_variables.update(values)
 
         distribution = self.release.split('-')[0]
-        file_name = cfg['templates']['pxe_' + distribution]
+        file_name = cfg[distribution]['template_pxe']
         file_name = os.path.join(cfg['paths']['templates'], file_name)
         if not os.path.isfile(file_name):
             err = 'file "%s" does not exist (hint: check the templates '\
@@ -125,15 +123,15 @@ class GeneratePxe:
     def hook_enable(self):
         """apply PXE variables on the configured enable hook(s) and run the
         hook(s)"""
-        for hook in cfg['hooks']['enable']:
+        for hook in cfg['hooks_pxe']['enable']:
             hook = utils.apply_template(hook, self.pxe_variables)
             logging.info('found enable hook "%s"', hook)
-            utils.run(hook)
+            utils.run(hook, error=True)
 
 
 class ExternalNodes(object):
     """use external nodes for getting configuration details"""
-    
+
     def __init__(self, provider, values):
         """initialize variables"""
         self.provider = provider
@@ -152,7 +150,7 @@ class ExternalNodes(object):
         if result:
             return dict([('external_' + k, v) for k, v in result.items()])
         else:
-            print ('warning: no external node information found')
+            logging.warning('no external node information found')
 
     def _gather_script(self):
         """get node information via a lookup script"""

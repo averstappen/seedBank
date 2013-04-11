@@ -1,17 +1,28 @@
-# seedBank example configuration created by Jasper Poppe <jpoppe@ebay.com>
+# seedBank example configuration created by Jasper Poppe <jgpoppe@gmail.com>
 
 # enable and disable hooks which contain command(s) which will be executed on
 # the host you are running seedBank from. When running seedBank to generate
 # a pxelinux.cfg file the command(s) specified in the enable hook will be
-# executed. The command(s) specified in the disable hook will be executed by the
-# seedBank daemon when the installation has finished and just before the system
-# restarts
+# executed. The command(s) specified in the disable hook will be executed by
+# the seedBank daemon when the installation has finished and just before the
+# system restarts
 #
 # enable  -> those command(s) will run after a system has been enabled for
 #            installation by the 'seedbank pxe' command
+#            e.g.: ['puppet cert --clean ${host_name}.${dns_domain}']
 # disable -> those command(s) will run after an installation is done and
 #            the machine will notify the seedBank daemon by requesting
 #            the disable url
-hooks:
-  enable: ['puppet cert --clean ${host_name}.${dns_domain}']
+hooks_pxe:
+  enable: []
   disable: []
+
+# enable and disable hooks which contain command(s) which will be executed on
+# the host you are running seedBank from. When running seedBank to generate
+# an ISO the command(s) specified in the enable hook will be executed after
+# the ISO has been created.
+# enable  -> those command(s) will run after an ISO has been created
+#            by the 'seedbank iso' command
+#            e.g.: ['scp /tmp/${fqdn}.iso overlord001.a.c.m.e:']
+hooks_iso:
+  enable: []

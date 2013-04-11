@@ -1,6 +1,6 @@
 """this module processes the configuration"""
 
-# Copyright 2009-2012 Jasper Poppe <jpoppe@ebay.com>
+# Copyright 2009-2012 Jasper Poppe <jgpoppe@gmail.com>
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__author__ = 'Jasper Poppe <jpoppe@ebay.com>'
+__author__ = 'Jasper Poppe <jgpoppe@gmail.com>'
 __copyright__ = 'Copyright (c) 2009-2012 Jasper Poppe'
 __credits__ = ''
 __license__ = 'Apache License, Version 2.0'
-__version__ = '2.0.0rc5'
+__version__ = '2.0.0rc7'
 __maintainer__ = 'Jasper Poppe'
-__email__ = 'jpoppe@ebay.com'
+__email__ = 'jgpoppe@gmail.com'
 __status__ = 'production'
 
 import ast
@@ -30,6 +30,22 @@ import re
 
 import utils
 
+def list_isos(cfg, distribution, isos):
+    """generate a list with available ISOs"""
+    for release in cfg[distribution]['isos']:
+        for flavour in cfg[distribution]['iso_flavours']:
+            for architecture in cfg[distribution]['architectures']:
+                name = '-'.join((distribution, release, architecture, flavour))
+                isos.append(name)
+    return isos
+
+def list_netboots(cfg, distribution, netboots):
+    """generate a list with available netboot images"""
+    for release in cfg[distribution]['netboots']:
+        for architecture in cfg[distribution]['architectures']:
+            name = '-'.join((distribution,  release, architecture))
+            netboots.append(name)
+    return netboots
 
 def parse_cfg():
     """validate the configuration"""
@@ -62,20 +78,16 @@ def parse_cfg():
     cfg = utils.yaml_read(files)
     cfg.update(settings)
 
+    distributions = ['debian', 'ubuntu']
+    isos = []
     netboots = []
-    for release in cfg['distributions']['netboots']:
-        for architecture in cfg['distributions']['architectures']:
-            netboots.append(release + '-' + architecture)
-    cfg['distributions']['netboots'] = netboots
-
-    isos_version = []
-    for iso in cfg['distributions']['isos']:
-        distribution, release, version = iso.split('-')
-        for architecture in cfg['distributions']['architectures']:
-            isos_version.append('%s-%s-%s-%s' % (distribution, release,
-                architecture, version))
-    cfg['distributions']['isos'] = isos_version
-
+    for distribution in distributions:
+        if 'isos' in cfg[distribution]:
+            isos = list_isos(cfg, distribution, isos)
+        if 'netboots' in cfg[distribution]:
+            netboots = list_netboots(cfg, distribution, netboots)
+    cfg['netboots'] = netboots
+    cfg['isos'] = isos
     return cfg
 
 def merge_cfg(config):
@@ -131,19 +143,29 @@ def template(fqdn, overlay, config, variables):
 
 def override(args, overrides):
     """override optional arguments with arguments from the config file"""
-    positionals = ('fqdn', 'release', 'output')
     args_dict = vars(args)
     for key, value in overrides['args'].items():
-        if key in positionals:
-            logging.warning('positional arguments can not be overriden please '
-                'remove "%s" from config "%s"', key, args.config)
+        if key == 'config':
+            raise utils.FatalException('argument "%s" specified in the config '
+                'override could not be used because it needs to be specified '
+                'on the command line' % key)
+        if key == 'variables':
+            if type(value) == dict:
+                value = [(name, data) for name, data in value.items()]
+
+        if key not in args_dict:
+            raise utils.FatalException('argument "%s" specified in the config '
+                'override is not a valid argument' % key)
+        elif not value:
+            pass
+        elif type(args_dict[key]) == list:
+            value = args_dict[key] + value
+            setattr(args, key, value)
+        elif getattr(args, key):
+            raise utils.FatalException('argument "%s" has been defined on the '
+                'command line and in the config override, omit one of those'
+                % key)
         else:
-            if type(args_dict[key]) == list:
-                value = args_dict[key] + value
-            else:
-                logging.warning('option "%s" has been defined on the command '
-                    'line and in the config override, will use value "%s" from '
-                    'the config override "%s"', key, value, args.config)
             setattr(args, key, value)
     return args
 

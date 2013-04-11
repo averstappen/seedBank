@@ -1,4 +1,4 @@
-# Copyright 2009-2012 Jasper Poppe <jpoppe@ebay.com>
+# Copyright 2009-2012 Jasper Poppe <jgpoppe@gmail.com>
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__author__ = 'Jasper Poppe <jpoppe@ebay.com>'
+__author__ = 'Jasper Poppe <jgpoppe@gmail.com>'
 __copyright__ = 'Copyright (c) 2009-2012 Jasper Poppe'
 __credits__ = ''
 __license__ = 'Apache License, Version 2.0'
-__version__ = '2.0.0rc5'
+__version__ = '2.0.0rc7'
 __maintainer__ = 'Jasper Poppe'
-__email__ = 'jpoppe@ebay.com'
+__email__ = 'jgpoppe@gmail.com'
 __status__ = 'production'
 
 import os
+import sys
 
+import manage
 import utils
 
 
@@ -32,7 +34,6 @@ class Build:
 
     def __init__(self, cfg, iso_file, fqdn, dst):
         """prepare the data dictionary"""
-        self.data = {}
         self.cfg = cfg
         work_path = os.path.join(cfg['paths']['temp'], 'seedbank', fqdn, 'iso')
         self.work_path = work_path
@@ -40,6 +41,7 @@ class Build:
         self.work_iso = os.path.join(work_path, 'iso')
         self.iso_file = iso_file
         self.iso_dst = dst
+        self.data = cfg['iso']
         self.data['architecture'] = None
 
     def prepare(self):
@@ -50,24 +52,42 @@ class Build:
         utils.run('bsdtar -C "%s" -xf "%s"' % (self.work_iso, self.iso_file))
         utils.run('chmod -R u+w "%s"' % self.work_iso)
 
+    def non_free_firmware(self, release):
+        """patch the Debian non free firmware in the ISO"""
+        name = '-'.join(release.split('-')[:-1])
+        distribution, release, _ = name.split('-')
+        if 'firmwares' in self.cfg[distribution]:
+            if release in self.cfg[distribution]['firmwares']:
+                target = os.path.join(self.work_initrd, 'lib/firmware')
+                setup = manage.Manage(self.cfg)
+                setup._add_firmware(name, target)
+
     def add_templates(self, distribution):
         """process and add the rc.local and isolinux templates"""
         path = self.cfg['paths']['templates']
-        template = distribution + '_isolinux'
-        src = os.path.join(path, self.cfg['templates'][template])
         dst = os.path.join(self.work_iso, 'isolinux/isolinux.cfg')
+        if not os.path.isfile(dst):
+            template = 'template_isolinux_mini'
+            dst = os.path.join(self.work_iso, 'isolinux.cfg')
+        else:
+            template = 'template_isolinux'
+        src = os.path.join(path, self.cfg[distribution][template])
         utils.write_template(self.data, src, dst)
         src = os.path.join(path, self.cfg['templates']['rc_local'])
         dst = os.path.join(self.work_iso, 'seedbank/etc/rc.local')
         utils.write_template(self.data, src, dst)
 
     def add_preseed(self, contents):
-        """add the seed file to the intrd image"""
+        """copy the preseed file to the intrd image"""
         dst = os.path.join(self.work_initrd, 'preseed.cfg')
         utils.file_write(dst, contents)
+
+    def rebuild_initrd(self):
+        """rebuild the initrd image"""
         path_amd = os.path.join(self.work_iso, 'install.amd')
         path_i386 = os.path.join(self.work_iso, 'install.386')
         path_ubuntu = os.path.join(self.work_iso, 'install')
+
         if os.path.isdir(path_amd):
             self.data['architecture'] = 'amd'
             path = path_amd
@@ -76,6 +96,9 @@ class Build:
             path = path_i386
         elif os.path.isdir(path_ubuntu):
             path = path_ubuntu
+        else:
+            path = self.work_iso
+
         initrd = os.path.join(path, 'initrd.gz')
         utils.initrd_extract(self.work_initrd, initrd)
         utils.initrd_create(self.work_initrd, initrd)
@@ -93,8 +116,21 @@ class Build:
 
     def create(self):
         """generate the MD5 hashes and build the ISO"""
-        utils.run('cd "%s" && md5sum $(find . \! -name "md5sum.txt" \! -path '
-        '"./isolinux/*" -follow -type f) > md5sum.txt' % self.work_iso)
+        path = os.path.join(self.work_iso, 'isolinux')
+        if os.path.isdir(path):
+            isolinux = 'isolinux/'
+        else:
+            isolinux = ''
+
+        if sys.platform == 'darwin':
+            md5 = 'md5 -r'
+        else:
+            md5 = 'md5sum'
+
+        utils.run('cd "%s" && %s $(find . \! -name "md5sum.txt" \! -path '
+            '"./%s*" -follow -type f) > md5sum.txt' % (self.work_iso, md5,
+            isolinux))
         utils.run('cd "%s" && mkisofs -quiet -o "%s" -r -J -no-emul-boot '
-            '-boot-load-size 4 -boot-info-table -b isolinux/isolinux.bin -c '
-            'isolinux/boot.cat iso' % (self.work_path, self.iso_dst))
+            '-boot-load-size 4 -boot-info-table -b %sisolinux.bin -c '
+            '%sboot.cat iso' % (self.work_path, self.iso_dst, isolinux,
+            isolinux))

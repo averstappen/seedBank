@@ -1,12 +1,12 @@
 ##############################################################################
 #
 # seedBank Debian Squeeze preseed file
-# created by Jasper Poppe <jpoppe@ebay.com>
+# created by Jasper Poppe <jgpoppe@gmail.com>
 #
-# This is seed file does a minimal Debian Squeeze installation, 
+# This is seed file does a minimal Debian Squeeze installation,
 # feel free to customize ;)
 #
-# For much more options and explanation see: 
+# For much more options and explanation see:
 #  http://www.debian.org/releases/squeeze/example-preseed.txt
 #  http://d-i.alioth.debian.org/tmp/en.i386/apbs04.html
 #
@@ -20,14 +20,17 @@
 #
 ###############################################################################
 
+### - Those settings will be ignored when doing a netboot installation
+#     and should be provided by kernel parameters (pxe variables and templates
+#     are used for this)
+d-i debian-installer/locale string ${locale}
+
 ### - Localization, Keyboard
-d-i debian-installer/locale string en_US
-d-i console-keymaps-at/keymap select us
-#d-i console-data/keymap/policy select Don't touch keymap
-d-i console-data/keymap/policy select us
-d-i debian-installer/language string en
-d-i debian-installer/country string NL
-d-i debian-installer/locale string en_US.UTF-8
+d-i console-keymaps-at/keymap select ${keymap}
+d-i console-data/keymap/policy select ${keymap_policy}
+d-i debian-installer/language string ${language}
+d-i debian-installer/country string ${country}
+d-i keyboard-configuration/variant select ${keyboard_variant}
 # Optionally specify additional locales to be generated.
 #d-i localechooser/supported-locales en_US.UTF-8, nl_NL.UTF-8
 
@@ -38,13 +41,16 @@ d-i netcfg/get_domain string ${dns_domain}
 d-i netcfg/wireless_wep string
 d-i hw-detect/load_firmware boolean true
 
+### - Required when installing additional kernel(s)
+d-i linux-base/disk-id-convert-auto boolean true
+
 ### - Enable SSH during installation (username = installer)
 d-i anna/choose_modules string network-console
-d-i network-console/password password seed123
-d-i network-console/password-again password seed123
+d-i network-console/password password ${console_password}
+d-i network-console/password-again password ${console_password}
 d-i network-console/start note
 
-### - Mirror 
+### - Mirror
 d-i mirror/country string manual
 d-i mirror/http/hostname string ${debian_mirror_host_name}
 d-i mirror/http/directory string ${debian_mirror_directory}
@@ -56,7 +62,7 @@ d-i debian-installer/allow_unauthenticated boolean ${mirror_allow_unauthenticate
 #d-i mirror/udeb/suite string testing
 
 ### - Date and Time
-d-i clock-setup/utc boolean true
+d-i clock-setup/utc boolean ${clock_utc}
 d-i time/zone string ${timezone}
 d-i clock-setup/ntp boolean true
 d-i clock-setup/ntp-server string ${ntp_server}
@@ -66,6 +72,7 @@ d-i partman-lvm/device_remove_lvm boolean true
 d-i partman-md/device_remove_md boolean true
 d-i partman-lvm/confirm boolean true
 d-i partman/confirm_write_new_label boolean true
+d-i partman/alignment string cylinder
 # commenting the two following lines could help for debugging disk recipes
 d-i partman/choose_partition select finish
 d-i partman/confirm boolean true
@@ -92,7 +99,7 @@ d-i apt-setup/services-select multiselect
 #d-i apt-setup/volatile_host string volatile.debian.org
 
 ### - Package selection
-tasksel tasksel/first multiselect minimal
+tasksel tasksel/first multiselect ${debian_task_sel}
 d-i pkgsel/include string ${debian_packages}
 d-i pkgsel/upgrade select full-upgrade
 
@@ -104,8 +111,10 @@ d-i grub-installer/only_debian boolean true
 d-i grub-installer/with_other_os boolean true
 d-i debian-installer/add-kernel-opts string ${add_kernel_opts}
 
-### - Finish 
+### - Finish
 d-i finish-install/reboot_in_progress note
+d-i debian-installer/exit/poweroff boolean ${power_off}
+d-i cdrom-detect/eject boolean true
 
 ### - Custom commands
 d-i preseed/early_command string ${early_command}

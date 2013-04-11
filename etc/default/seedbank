@@ -1,0 +1,5 @@
+# Defaults for the seedBank init script, sourced by /etc/init.d/seedbank on
+# Debian and Ubuntu systems.
+
+# Start the seedbank daemon on boot?
+#START_SEEDBANK=true

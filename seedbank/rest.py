@@ -1,23 +1,11 @@
-"""
-Testing URLs:
-  wget 'http://localhost:7467/seed/C0A80014' -q -O -
-  wget 'http://localhost:7467/manifests.tgz'
-  wget 'http://localhost:7467/bootstrapinit/C0A80014' -q -O -
-  wget 'http://localhost:7467/pimp/C0A80014' -q -O -
-  wget 'http://localhost:7467/overlay.tgz/C0A80014' -O overlay.tgz
-  wget 'http://localhost:7467/disable/C0A80014' -q -O
-  wget 'http://localhost:7467/status/C0A80014&state=done' -q -O
-
-"""
-
-# Copyright 2009-2012 Jasper Poppe <jpoppe@ebay.com>
-# 
+# Copyright 2009-2012 Jasper Poppe <jgpoppe@gmail.com>
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -56,16 +44,9 @@ class AttributeDict(dict):
 
 def api_parse(command, args):
     """convert arguments to an object, pass it to parse"""
-    if command == 'iso':
-        positionals = ['release', 'output', 'fqdn']
-    elif command == 'pxe':
-        positionals = ['release', 'fqdn']
-
-    for positional in positionals:
-        if not positional in args:
-            logging.error('missing mandatory positional argument "%s"',
-                positional)
-            return
+    if not 'fqdn' in args:
+        logging.error('missing mandatory positional argument "fqdn"')
+        return
 
     args = AttributeDict(args)
     parse_arg = parse.ParseArguments(cfg, api=True)
@@ -157,8 +138,8 @@ def disable(address):
     """disable a pxelinux configuration file by renaming the file"""
     file_name = os.path.join(cfg['paths']['tftpboot'], 'pxelinux.cfg', address)
     utils.file_move(file_name, file_name + '.disabled')
-    if cfg['hooks']['disable']:
-        for cmd in cfg['hooks']['disable']:
+    if cfg['hooks_pxe']['disable']:
+        for cmd in cfg['hooks_pxe']['disable']:
             utils.run(cmd)
 
 @route('/log/:msg')

@@ -1,4 +1,4 @@
-# seedBank example configuration created by Jasper Poppe <jpoppe@ebay.com>
+# seedBank example configuration created by Jasper Poppe <jgpoppe@gmail.com>
 #
 # preseed template variables, feel free change or add variables. The variables
 # are used in the preseed files which are located in the 'seeds' path
@@ -7,13 +7,14 @@
 # to install an Ubuntu desktop environment change the values of
 # ubuntu_tasksel to 'standard, ubuntu-desktop'
 # You can choose to install any combination of the following tasks:
-# standard ubuntu-desktop kubuntu-desktop edubuntu-desktop xubuntu-desktop dns-server lamp-server
+# standard ubuntu-desktop kubuntu-desktop edubuntu-desktop xubuntu-desktop
+# dns-server lamp-server
 #
 # HINT: those settings can be overridden by using override yaml files in the
 # seedBank configs directory. (default: /etc/seedbank/configs)
 #
-# NOTE: the following reserved variables will be generated automatically and will
-# be ignored when those will are defined here:
+# NOTE: the following reserved variables are automatially generated and will be
+# ignored
 # fqdn
 # host_name
 # dns_domain
@@ -21,15 +22,30 @@
 # NOTE: the early_command and late_command variables are mandatory and used
 # by seedBank internally, feel free to add custom commands, seedBank will
 # break if those variables are removed
+#
+# NOTE: if you want to use static configuration for PXE based installations
+# you will need to add the killall.sh script to the early command and specify
+# e.g.: early_command: ['/bin/killall.sh', '/bin/netcfg']
+# the related seed variables, for more info see:
+# /etc/seedbank/seeds/network.seed
+#
 seed:
   early_command: []
   late_command: []
   add_kernel_opts: ''
   debian_mirror_directory: /debian
   debian_mirror_host_name: ftp.debian.org
+  debian_task_sel: minimal
   apt_proxy: ''
   mirror_allow_unauthenticated: 'true'
-  debian_packages: openssh-server puppet debconf-utils lsb-release rsync vim less
+  debian_packages: openssh-server puppet debconf-utils lsb-release rsync vim less ifenslave-2.6 vlan
+  locale: en_US.UTF-8
+  country: NL
+  language: en
+  keymap: us
+  keymap_policy: us
+  console_password: seed123
+  keyboard_variant: USA
   ntp_server: ntp.xs4all.nl
   repository_0: 'deb http://192.168.122.1/debian/sn squeeze main'
   repository_0_key: 'http://192.168.122.1/debian/repository.key'
@@ -37,17 +53,37 @@ seed:
   ubuntu_mirror_directory: /ubuntu
   ubuntu_mirror_host_name: nl.archive.ubuntu.com
   ubuntu_task_sel: standard
-  ubuntu_packages: openssh-server puppet debconf-utils lsb-release rsync vim less
+  ubuntu_packages: openssh-server puppet debconf-utils lsb-release rsync vim less ifenslave-2.6 vlan
+  ubuntu_kernel_override: linux-generic
+  ubuntu_kernel_headers: 'true'
+  ubuntu_update_policy: 'none'
   user: seedbank
   user_full_name: seedBank User
   user_name: seedbank
   user_password: seed123
+  clock_utc: 'true'
+  power_off: 'false'
 
-# pxe template variables, feel free to add or modify the values, those
-# variables are used in the Debian and Ubuntu pxe template files (default:
-# /etc/seedbank/templates/pxe_debian and /etc/seedbank/templates/pxe_ubuntu)
+# pxe template variables, feel free to add (or modify) the values, those
+# variables are used in the file overlays and Debian and Ubuntu pxe template
+# files (default: /etc/seedbank/templates/pxe_debian and
+# /etc/seedbank/templates/pxe_ubuntu)
 #
-# see the pxe template files for more informations
+# see the pxe template files for more information
+#
+# console_charmap -> kernel parameter to set the charmap
+# console_layout  -> kernel parameter to set the layout
+# country_chooser -> kernel parameter to select the country
+# debug_level     -> kernel parameter to set the debug level of the Debian
+#                    installer
+# extra           -> additional kernel parameters
+# interface       -> kernel parameter to set the default network interface
+# locale          -> kernel parameter to set the default locale
+# template        -> template which will be used for generating the
+#                    pxelinix.cfg host configuration file
+# theme           -> kernel parameter to set the installer colors
+# puppet_master   -> this pxe variable is used in some of the file overlay
+#                    examples
 pxe:
   console_charmap: UTF-8
   console_layout: us
@@ -58,3 +94,17 @@ pxe:
   locale: en_US
   template: pxehost
   theme: dark
+  puppet_master: puppet
+
+# iso template variables, feel free to add or modify the values, those
+# variables are used in the file overlays and Debian and Ubuntu iso template
+# files (default: /etc/seedbank/templates/debian_isolinux.cfg,
+# /etc/seedbank/templates/debian_mini_isolinux.cfg,
+# /etc/seedbank/templates/ubuntu_isolinux.cfg,
+# /etc/seedbank/templates/ubuntu_mini_isolinux.cfg)
+#
+# see the iso template files for more information
+#
+# extra -> additional kernel parameters
+iso:
+  extra: ''

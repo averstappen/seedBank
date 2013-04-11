@@ -1,26 +1,26 @@
 """this module processes the preseed templates and file overlays """
 
-# Copyright 2009-2012 Jasper Poppe <jpoppe@ebay.com>
-# 
+# Copyright 2009-2012 Jasper Poppe <jgpoppe@gmail.com>
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #    http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__author__ = 'Jasper Poppe <jpoppe@ebay.com>'
+__author__ = 'Jasper Poppe <jgpoppe@gmail.com>'
 __copyright__ = 'Copyright (c) 2009-2012 Jasper Poppe'
 __credits__ = ''
 __license__ = 'Apache License, Version 2.0'
-__version__ = '2.0.0rc5'
+__version__ = '2.0.0rc7'
 __maintainer__ = 'Jasper Poppe'
-__email__ = 'jpoppe@ebay.com'
+__email__ = 'jgpoppe@gmail.com'
 __status__ = 'production'
 
 import logging
@@ -53,7 +53,7 @@ class SeedPimp:
         self.target = target
 
     def _merge_seeds(self, seeds, values):
-        """merge the main seed file with the recipe(s) and additional seeds 
+        """merge the main seed file with the recipe(s) and additional seeds
         return it as a string"""
         result = ''
         for seed in seeds:
@@ -66,15 +66,19 @@ class SeedPimp:
     def pimp(self, seeds, overlay, manifests):
         """pimp the seed file template"""
         commands = self.cfg['commands']
+        values = self.cfg['seed']
+
         if self.target == 'iso':
             cmd_overlay = commands['iso_overlay']
+            cmd_early = commands['iso_early_command']
             cmd_late = commands['iso_late_command']
+            values['late_command'] += commands['iso_mount_command']
         elif self.target == 'pxe':
             cmd_overlay = commands['pxe_overlay']
             cmd_puppet_manifest = commands['pxe_puppet_manifest']
+            cmd_early = commands['pxe_early_command']
             cmd_late = commands['pxe_late_command']
 
-        values = self.cfg['seed']
         if overlay:
             values['late_command'] += cmd_overlay
         if self.target == 'pxe' and manifests:
@@ -93,10 +97,11 @@ class SeedPimp:
                 dst = os.path.join(path, 'puppet_manifest_%s.enabled' %
                     manifest)
                 utils.write_template(values, src, dst)
-        
-        values['late_command'] += cmd_late
+
+        values['early_command'] += cmd_early
         values['early_command'] = commands_merge(values['early_command'],
             values)
+        values['late_command'] += cmd_late
         values['late_command'] = commands_merge(values['late_command'], values)
 
         seed_file = self._merge_seeds(seeds, values)
@@ -182,8 +187,8 @@ class OverlayPermissions:
             for real_path in perm_list:
                 if real_path in defined_list:
                     perm_list[real_path] = defined_list[real_path]
-       
-        data = [] 
+
+        data = []
         header_file = os.path.join(self.cfg['paths']['templates'],
             self.cfg['templates']['permission_script'])
         header = utils.file_read(header_file)
